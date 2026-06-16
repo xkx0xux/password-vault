@@ -1,0 +1,561 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+<meta name="theme-color" content="#0c0d11">
+<title>VAULT — パスワード金庫</title>
+<!-- PWA / iPhoneホーム画面追加 -->
+<link rel="manifest" href="/static/manifest.json">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="VAULT">
+<meta name="mobile-web-app-capable" content="yes">
+<link rel="apple-touch-icon" href="/static/icon-180.png">
+<link rel="icon" type="image/png" href="/static/icon-192.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=Manrope:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg:#0c0d11; --bg2:#101218; --panel:#15171f; --panel2:#1b1e28;
+    --ink:#f3f4f7; --muted:#8a90a1; --faint:#5b6171;
+    --line:#262a36; --line2:#30343f;
+    --acid:#d6ff3f; --acid-ink:#0c0d11; --acid-dim:rgba(214,255,63,.14);
+    --danger:#ff5a4d;
+    --display:"Space Grotesk",-apple-system,sans-serif;
+    --body:"Manrope",-apple-system,"Hiragino Sans","Noto Sans JP",sans-serif;
+    --mono:"JetBrains Mono",ui-monospace,monospace;
+    --radius:18px;
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;height:100%}
+  body{
+    font-family:var(--body); color:var(--ink); background:var(--bg);
+    -webkit-font-smoothing:antialiased; line-height:1.5; position:relative;
+  }
+  /* 雰囲気：上部のグロー + 微細なグレイン */
+  body::before{
+    content:"";position:fixed;inset:0;z-index:-2;pointer-events:none;
+    background:
+      radial-gradient(60% 50% at 78% -8%, rgba(214,255,63,.10), transparent 60%),
+      radial-gradient(50% 40% at 0% 0%, rgba(90,120,255,.08), transparent 60%),
+      linear-gradient(180deg,var(--bg2),var(--bg) 40%);
+  }
+  body::after{
+    content:"";position:fixed;inset:0;z-index:-1;pointer-events:none;opacity:.035;
+    background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='2'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+  }
+  button{font-family:inherit;cursor:pointer;border:none;background:none;color:inherit}
+  input{font-family:inherit}
+  .hidden{display:none!important}
+  svg{display:block}
+  .ic{width:18px;height:18px;stroke:currentColor;stroke-width:1.9;fill:none;stroke-linecap:round;stroke-linejoin:round}
+
+  /* ================= ロック画面 ================= */
+  .lock-wrap{min-height:100%;display:flex;align-items:center;justify-content:center;padding:24px}
+  .lock-card{width:100%;max-width:400px}
+  .lock-badge{
+    width:62px;height:62px;border-radius:18px;border:1px solid var(--line2);
+    background:linear-gradient(160deg,var(--panel2),var(--panel));
+    display:flex;align-items:center;justify-content:center;margin-bottom:26px;
+    box-shadow:0 0 0 1px rgba(0,0,0,.4), 0 18px 40px rgba(0,0,0,.5);
+  }
+  .lock-badge .ic{width:28px;height:28px;stroke:var(--acid);stroke-width:1.8}
+  .kicker{font-family:var(--mono);font-size:11px;letter-spacing:.34em;text-transform:uppercase;
+    color:var(--acid);margin-bottom:14px}
+  .lock-card h1{font-family:var(--display);font-weight:700;font-size:30px;line-height:1.1;
+    letter-spacing:-.02em;margin:0 0 10px}
+  .lock-card p.sub{color:var(--muted);font-size:14px;margin:0 0 26px;max-width:34ch}
+  .field{margin-bottom:14px}
+  .field label{display:block;font-family:var(--mono);font-size:10.5px;letter-spacing:.18em;
+    text-transform:uppercase;color:var(--faint);margin-bottom:8px}
+  .field input{
+    width:100%;padding:14px 16px;border:1px solid var(--line2);border-radius:13px;
+    font-size:15px;outline:none;background:var(--panel);color:var(--ink);
+    transition:border-color .18s, box-shadow .18s, background .18s
+  }
+  .field input::placeholder{color:var(--faint)}
+  .field input:focus{border-color:var(--acid);background:var(--panel2);box-shadow:0 0 0 4px var(--acid-dim)}
+  .btn{
+    width:100%;padding:15px;border-radius:13px;background:var(--acid);color:var(--acid-ink);
+    font-family:var(--display);font-weight:700;font-size:14px;letter-spacing:.04em;
+    transition:transform .06s, filter .18s, box-shadow .18s;
+    box-shadow:0 10px 30px rgba(214,255,63,.18)
+  }
+  .btn:hover{filter:brightness(1.06)}
+  .btn:active{transform:translateY(1px)}
+  .btn[disabled]{opacity:.5;cursor:not-allowed;box-shadow:none}
+  .msg{font-size:13px;margin-top:14px;min-height:18px;font-weight:600}
+  .msg.err{color:var(--danger)} .msg.ok{color:var(--acid)}
+  .note{font-family:var(--mono);font-size:11px;line-height:1.7;color:var(--muted);margin-top:24px;
+    border-left:2px solid var(--acid);padding:4px 0 4px 14px}
+  .note b{color:var(--ink)}
+
+  /* ================= メイン ================= */
+  .app{max-width:780px;margin:0 auto;padding:0 18px 110px}
+  .topbar{position:sticky;top:0;z-index:5;padding:26px 0 14px;
+    background:linear-gradient(180deg,var(--bg) 62%,transparent);}
+  .brand-row{display:flex;align-items:flex-start;justify-content:space-between}
+  .wordmark{font-family:var(--display);font-weight:700;font-size:34px;letter-spacing:-.03em;line-height:1}
+  .wordmark .dot{color:var(--acid)}
+  .wordmark .sub{display:block;font-family:var(--mono);font-size:10.5px;letter-spacing:.32em;
+    text-transform:uppercase;color:var(--faint);margin-top:8px;font-weight:500}
+  .tools{display:flex;gap:9px}
+  .icon-btn{width:42px;height:42px;border-radius:12px;border:1px solid var(--line2);
+    background:var(--panel);color:var(--muted);display:flex;align-items:center;justify-content:center;
+    transition:.18s}
+  .icon-btn:hover{color:var(--acid);border-color:var(--acid);background:var(--panel2)}
+  .meta-row{margin:20px 0 12px;font-family:var(--mono);font-size:12px;color:var(--muted);
+    display:flex;align-items:center;gap:8px}
+  .meta-row b{color:var(--acid);font-size:13px}
+  .meta-row .rule{flex:1;height:1px;background:var(--line)}
+  .search-wrap{position:relative}
+  .search-wrap .ic{position:absolute;left:15px;top:50%;transform:translateY(-50%);
+    width:17px;height:17px;stroke:var(--faint)}
+  .search{width:100%;padding:13px 16px 13px 42px;border:1px solid var(--line2);border-radius:13px;
+    font-size:14px;outline:none;background:var(--panel);color:var(--ink);transition:.18s}
+  .search::placeholder{color:var(--faint)}
+  .search:focus{border-color:var(--acid);box-shadow:0 0 0 4px var(--acid-dim)}
+
+  .list{margin-top:16px;display:flex;flex-direction:column;gap:11px}
+  .empty{text-align:center;color:var(--muted);padding:64px 20px}
+  .empty .big{font-family:var(--display);font-size:19px;color:var(--ink);margin-bottom:6px;letter-spacing:-.01em}
+  .empty .sm{font-size:13.5px}
+
+  .card{
+    position:relative;background:var(--panel);border:1px solid var(--line);border-radius:15px;
+    padding:15px 16px 15px 19px;display:flex;align-items:center;gap:15px;overflow:hidden;
+    transition:border-color .18s, transform .18s, background .18s;
+    animation:rise .42s cubic-bezier(.2,.7,.2,1) both;
+  }
+  @keyframes rise{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:none}}
+  .card::before{content:"";position:absolute;left:0;top:0;bottom:0;width:3px;background:transparent;transition:.18s}
+  .card:hover{border-color:var(--line2);background:var(--panel2);transform:translateY(-1px)}
+  .card:hover::before{background:var(--acid)}
+  .avatar{width:44px;height:44px;border-radius:12px;flex:none;display:flex;align-items:center;
+    justify-content:center;font-family:var(--display);font-weight:700;font-size:18px;
+    border:1px solid var(--line2)}
+  .card-main{flex:1;min-width:0}
+  .card-main .site{font-family:var(--display);font-weight:600;font-size:16px;letter-spacing:-.01em;
+    white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .card-main .user{font-family:var(--mono);color:var(--muted);font-size:12.5px;margin-top:3px;
+    white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .card-actions{display:flex;gap:6px;flex:none}
+  .mini{width:37px;height:37px;border-radius:10px;background:var(--panel2);border:1px solid var(--line2);
+    color:var(--muted);display:flex;align-items:center;justify-content:center;transition:.16s}
+  .mini:hover{color:var(--acid);border-color:var(--acid);background:var(--acid-dim)}
+  .mini .ic{width:16px;height:16px}
+
+  .fab{position:fixed;right:max(22px,calc(50% - 390px + 22px));bottom:26px;width:58px;height:58px;
+    border-radius:50%;background:var(--acid);color:var(--acid-ink);display:flex;align-items:center;
+    justify-content:center;z-index:6;box-shadow:0 14px 34px rgba(214,255,63,.28);transition:transform .14s,filter .18s}
+  .fab:hover{filter:brightness(1.06)} .fab:active{transform:scale(.95)}
+  .fab .ic{width:24px;height:24px;stroke-width:2.4}
+
+  /* ================= モーダル ================= */
+  .modal-bg{position:fixed;inset:0;background:rgba(6,7,10,.66);backdrop-filter:blur(6px);
+    display:flex;align-items:flex-end;justify-content:center;z-index:20;animation:fade .2s}
+  @keyframes fade{from{opacity:0}to{opacity:1}}
+  @media(min-width:560px){.modal-bg{align-items:center;padding:20px}}
+  .modal{background:var(--panel);border:1px solid var(--line2);width:100%;max-width:480px;
+    border-radius:22px 22px 0 0;padding:24px 22px 28px;max-height:92vh;overflow:auto;
+    animation:slideup .28s cubic-bezier(.2,.7,.2,1)}
+  @keyframes slideup{from{transform:translateY(24px);opacity:.6}to{transform:none;opacity:1}}
+  @media(min-width:560px){.modal{border-radius:20px}}
+  .modal h3{font-family:var(--display);margin:0 0 4px;font-size:20px;letter-spacing:-.01em}
+  .modal .mhint{font-family:var(--mono);font-size:10.5px;letter-spacing:.2em;text-transform:uppercase;
+    color:var(--acid);margin:0 0 20px}
+  .row{display:flex;gap:8px;align-items:flex-end}
+  .pw-row input{flex:1}
+  .small-btn{padding:13px 13px;border-radius:11px;background:var(--panel2);border:1px solid var(--line2);
+    color:var(--muted);font-family:var(--mono);font-weight:500;font-size:12px;white-space:nowrap;transition:.16s}
+  .small-btn:hover{color:var(--acid);border-color:var(--acid)}
+  #f_pass,#genResult{font-family:var(--mono)}
+  .modal-actions{display:flex;gap:10px;margin-top:10px}
+  .btn-ghost{flex:none;width:auto;padding:15px 18px;background:var(--panel2);border:1px solid var(--line2);
+    color:var(--ink);border-radius:13px;font-family:var(--display);font-weight:600;font-size:14px;transition:.16s}
+  .btn-ghost:hover{border-color:var(--line2);background:var(--line)}
+  .btn-danger{background:transparent;border-color:rgba(255,90,77,.4);color:var(--danger)}
+  .btn-danger:hover{background:rgba(255,90,77,.12);border-color:var(--danger)}
+  .modal-actions .btn{flex:1}
+  input[type=range]{accent-color:var(--acid)}
+  .checks{display:flex;gap:20px;align-items:center;font-family:var(--mono);font-size:13px;color:var(--muted)}
+  .checks input{accent-color:var(--acid)}
+
+  .toast{position:fixed;bottom:26px;left:50%;transform:translateX(-50%) translateY(8px);
+    background:var(--acid);color:var(--acid-ink);font-family:var(--mono);font-weight:700;font-size:12.5px;
+    letter-spacing:.02em;padding:11px 18px;border-radius:12px;z-index:50;opacity:0;
+    transition:opacity .2s,transform .2s;pointer-events:none;box-shadow:0 10px 30px rgba(214,255,63,.25)}
+  .toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
+</style>
+</head>
+<body>
+
+<!-- ===== ロック画面 ===== -->
+<div id="lockView" class="lock-wrap">
+  <div class="lock-card">
+    <div class="lock-badge">
+      <svg class="ic" viewBox="0 0 24 24"><rect x="4" y="10.5" width="16" height="10.5" rx="2.6"/><path d="M8 10.5V7a4 4 0 0 1 8 0v3.5"/></svg>
+    </div>
+    <div class="kicker">Encrypted Vault</div>
+    <h1 id="lockTitle">読み込み中…</h1>
+    <p class="sub" id="lockSub"></p>
+
+    <form id="lockForm" onsubmit="return false">
+      <div class="field">
+        <label id="pwLabel">Master Password</label>
+        <input type="password" id="pw" autocomplete="current-password" placeholder="••••••••">
+      </div>
+      <div class="field hidden" id="pw2Field">
+        <label>Confirm</label>
+        <input type="password" id="pw2" autocomplete="new-password" placeholder="••••••••">
+      </div>
+      <button class="btn" id="lockBtn" type="submit">UNLOCK</button>
+      <div class="msg" id="lockMsg"></div>
+    </form>
+
+    <div class="note" id="setupNote">
+      この合言葉ひとつで全データを暗号化します。<br>
+      <b>忘れると中身は誰にも（私にも）戻せません。</b> 紙に書いて安全に保管してください。
+    </div>
+  </div>
+</div>
+
+<!-- ===== メイン ===== -->
+<div id="appView" class="app hidden">
+  <div class="topbar">
+    <div class="brand-row">
+      <div class="wordmark">VAULT<span class="dot">.</span>
+        <span class="sub">パスワード金庫</span>
+      </div>
+      <div class="tools">
+        <button class="icon-btn" id="genBtn" title="パスワード生成">
+          <svg class="ic" viewBox="0 0 24 24"><rect x="3.5" y="3.5" width="17" height="17" rx="4.5"/><circle cx="8.5" cy="8.5" r="1.4" fill="currentColor" stroke="none"/><circle cx="12" cy="12" r="1.4" fill="currentColor" stroke="none"/><circle cx="15.5" cy="15.5" r="1.4" fill="currentColor" stroke="none"/></svg>
+        </button>
+        <button class="icon-btn" id="lockNowBtn" title="ロックする">
+          <svg class="ic" viewBox="0 0 24 24"><rect x="4" y="10.5" width="16" height="10.5" rx="2.6"/><path d="M8 10.5V7a4 4 0 0 1 8 0v3.5"/></svg>
+        </button>
+      </div>
+    </div>
+    <div class="meta-row"><b id="count">0</b> ITEMS<span class="rule"></span></div>
+    <div class="search-wrap">
+      <svg class="ic" viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.2-4.2"/></svg>
+      <input class="search" id="search" placeholder="サイト名・IDで検索…">
+    </div>
+  </div>
+  <div class="list" id="list"></div>
+</div>
+
+<button class="fab hidden" id="fab" title="追加">
+  <svg class="ic" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>
+</button>
+
+<!-- 追加/編集モーダル -->
+<div id="editModal" class="modal-bg hidden">
+  <div class="modal">
+    <p class="mhint" id="editHint">New Entry</p>
+    <h3 id="editTitle">新規追加</h3>
+    <div class="field"><label>Site / Service *</label>
+      <input id="f_site" placeholder="例：Amazon"></div>
+    <div class="field"><label>URL</label>
+      <input id="f_url" placeholder="https://..."></div>
+    <div class="field"><label>ID / Email</label>
+      <input id="f_user" placeholder="ログインID"></div>
+    <div class="field"><label>Password</label>
+      <div class="row pw-row">
+        <input id="f_pass" type="text" placeholder="パスワード">
+        <button class="small-btn" id="genInModal" type="button">🎲 生成</button>
+      </div>
+    </div>
+    <div class="field"><label>Note</label>
+      <input id="f_note" placeholder="任意"></div>
+    <div class="modal-actions">
+      <button class="btn-ghost btn-danger hidden" id="deleteBtn">削除</button>
+      <button class="btn-ghost" id="cancelEdit">閉じる</button>
+      <button class="btn" id="saveEntry">保存</button>
+    </div>
+  </div>
+</div>
+
+<!-- パスワード生成モーダル -->
+<div id="genModal" class="modal-bg hidden">
+  <div class="modal">
+    <p class="mhint">Generator</p>
+    <h3>パスワード生成</h3>
+    <div class="field" style="margin-top:18px">
+      <div class="row pw-row">
+        <input id="genResult" readonly style="font-size:16px">
+        <button class="small-btn" id="copyGen" type="button">コピー</button>
+      </div>
+    </div>
+    <div class="field"><label>Length — <span id="lenVal">16</span></label>
+      <input type="range" id="genLen" min="8" max="40" value="16" style="width:100%"></div>
+    <div class="field checks">
+      <label><input type="checkbox" id="optNum" checked> 数字</label>
+      <label><input type="checkbox" id="optSym" checked> 記号</label>
+    </div>
+    <div class="modal-actions">
+      <button class="btn-ghost" id="closeGen">閉じる</button>
+      <button class="btn" id="regen">作り直す</button>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+/* ===================== 共通ユーティリティ ===================== */
+const $ = (id) => document.getElementById(id);
+function toast(t){const e=$("toast");e.textContent=t;e.classList.add("show");clearTimeout(e._t);e._t=setTimeout(()=>e.classList.remove("show"),1600);}
+
+function bytesToB64(buf){let b="";const a=new Uint8Array(buf);for(let i=0;i<a.length;i++)b+=String.fromCharCode(a[i]);return btoa(b);}
+function b64ToBytes(s){const bin=atob(s);const a=new Uint8Array(bin.length);for(let i=0;i<bin.length;i++)a[i]=bin.charCodeAt(i);return a;}
+function bytesToHex(buf){return Array.from(new Uint8Array(buf)).map(b=>b.toString(16).padStart(2,"0")).join("");}
+
+/* アイコン（一覧の操作ボタン用） */
+const ICON = {
+  copy:'<svg class="ic" viewBox="0 0 24 24"><rect x="9" y="9" width="11" height="11" rx="2.4"/><path d="M5 15V5.5A1.5 1.5 0 0 1 6.5 4H16"/></svg>',
+  key :'<svg class="ic" viewBox="0 0 24 24"><circle cx="7.5" cy="15.5" r="3.6"/><path d="m10.2 13 9-9M16.5 6.5l2 2M13.5 9.5l2 2"/></svg>',
+  edit:'<svg class="ic" viewBox="0 0 24 24"><path d="M12.5 20H21"/><path d="M16.4 3.6a2 2 0 0 1 2.9 2.9L7.5 18.3 3.5 19.5l1.2-4Z"/></svg>'
+};
+
+/* ===================== 暗号（すべてブラウザ内） ===================== */
+const PBKDF2_ITER = 600000;
+
+async function deriveKeys(password, saltBytes){
+  const km = await crypto.subtle.importKey("raw", new TextEncoder().encode(password), "PBKDF2", false, ["deriveBits"]);
+  const bits = await crypto.subtle.deriveBits(
+    {name:"PBKDF2", salt:saltBytes, iterations:PBKDF2_ITER, hash:"SHA-256"}, km, 512);
+  const raw = new Uint8Array(bits);
+  const encKey = await crypto.subtle.importKey("raw", raw.slice(0,32), {name:"AES-GCM"}, false, ["encrypt","decrypt"]);
+  const authHash = bytesToHex(raw.slice(32,64)); // これだけサーバーへ
+  return {encKey, authHash};
+}
+async function encryptVault(vault, encKey){
+  const iv = crypto.getRandomValues(new Uint8Array(12));
+  const ct = await crypto.subtle.encrypt({name:"AES-GCM", iv}, encKey,
+              new TextEncoder().encode(JSON.stringify(vault)));
+  return {ciphertext:bytesToB64(ct), iv:bytesToB64(iv)};
+}
+async function decryptVault(ciphertextB64, ivB64, encKey){
+  const pt = await crypto.subtle.decrypt({name:"AES-GCM", iv:b64ToBytes(ivB64)}, encKey, b64ToBytes(ciphertextB64));
+  return JSON.parse(new TextDecoder().decode(pt));
+}
+
+/* ===================== 状態 ===================== */
+const state = { encKey:null, authHash:null, saltB64:null, vault:[], editingId:null };
+
+/* ===================== 起動 ===================== */
+async function boot(){
+  if(!window.crypto || !crypto.subtle){
+    $("lockTitle").textContent = "この接続では使えません";
+    $("lockSub").textContent = "安全な接続(https)か localhost で開いてください。";
+    $("lockForm").classList.add("hidden");
+    return;
+  }
+  const meta = await (await fetch("/api/meta")).json();
+  if(meta.initialized){
+    state.saltB64 = meta.salt;
+    $("lockTitle").textContent = "おかえりなさい";
+    $("lockSub").textContent = "マスターパスワードを入力して金庫を開きます。";
+    $("pw2Field").classList.add("hidden");
+    $("setupNote").classList.add("hidden");
+    $("lockBtn").textContent = "UNLOCK";
+    $("lockForm").dataset.mode = "unlock";
+  }else{
+    $("lockTitle").textContent = "合言葉を決めます";
+    $("lockSub").textContent = "全データを守るマスターパスワードを設定してください。";
+    $("pw2Field").classList.remove("hidden");
+    $("setupNote").classList.remove("hidden");
+    $("lockBtn").textContent = "CREATE VAULT";
+    $("lockForm").dataset.mode = "setup";
+  }
+  $("pw").focus();
+}
+
+/* ===================== ロック処理 ===================== */
+$("lockForm").addEventListener("submit", async ()=>{
+  const mode = $("lockForm").dataset.mode;
+  const pw = $("pw").value;
+  const msg = $("lockMsg");
+  msg.className="msg"; msg.textContent="";
+  if(pw.length < 4){ msg.classList.add("err"); msg.textContent="もう少し長いパスワードにしてください"; return; }
+
+  $("lockBtn").disabled = true;
+  try{
+    if(mode === "setup"){
+      if(pw !== $("pw2").value){ msg.classList.add("err"); msg.textContent="2つのパスワードが一致しません"; return; }
+      const saltBytes = crypto.getRandomValues(new Uint8Array(16));
+      state.saltB64 = bytesToB64(saltBytes);
+      const {encKey, authHash} = await deriveKeys(pw, saltBytes);
+      state.encKey = encKey; state.authHash = authHash; state.vault = [];
+      const {ciphertext, iv} = await encryptVault(state.vault, encKey);
+      const r = await fetch("/api/setup",{method:"POST",headers:{"Content-Type":"application/json"},
+        body:JSON.stringify({salt:state.saltB64, authHash, ciphertext, iv})});
+      if(!r.ok) throw new Error("setup failed");
+      enterApp();
+    }else{
+      const saltBytes = b64ToBytes(state.saltB64);
+      const {encKey, authHash} = await deriveKeys(pw, saltBytes);
+      const r = await fetch("/api/unlock",{method:"POST",headers:{"Content-Type":"application/json"},
+        body:JSON.stringify({authHash})});
+      if(r.status === 401){ msg.classList.add("err"); msg.textContent="パスワードが違います"; return; }
+      if(!r.ok) throw new Error("unlock failed");
+      const data = await r.json();
+      state.encKey = encKey; state.authHash = authHash;
+      state.vault = await decryptVault(data.ciphertext, data.iv, encKey);
+      enterApp();
+    }
+  }catch(e){
+    msg.classList.add("err"); msg.textContent="エラーが発生しました。もう一度お試しください。";
+    console.error(e);
+  }finally{
+    $("lockBtn").disabled = false;
+    $("pw").value=""; $("pw2").value="";
+  }
+});
+
+function enterApp(){
+  $("lockView").classList.add("hidden");
+  $("appView").classList.remove("hidden");
+  $("fab").classList.remove("hidden");
+  renderList();
+}
+function lockNow(){ location.reload(); }
+$("lockNowBtn").addEventListener("click", lockNow);
+
+/* ===================== 一覧表示 ===================== */
+const PALETTE = ["#d6ff3f","#5b9bff","#ff7a59","#3dd7a8","#c77dff","#ffd23f","#ff6bb5","#7ce0e0"];
+function colorFor(s){let h=0;for(const c of s)h=(h*31+c.charCodeAt(0))>>>0;return PALETTE[h%PALETTE.length];}
+
+function renderList(){
+  const q = $("search").value.trim().toLowerCase();
+  $("count").textContent = state.vault.length;
+  const items = state.vault
+    .filter(e => !q || (e.site+e.username+(e.url||"")).toLowerCase().includes(q))
+    .sort((a,b)=>a.site.localeCompare(b.site,"ja"));
+  const list = $("list");
+  if(items.length === 0){
+    const empty = state.vault.length===0
+      ? `<div class="big">金庫は空です</div><div class="sm">右下の ＋ から最初のログイン情報を追加しましょう</div>`
+      : `<div class="big">見つかりません</div><div class="sm">別のキーワードでお試しください</div>`;
+    list.innerHTML = `<div class="empty">${empty}</div>`;
+    return;
+  }
+  list.innerHTML = "";
+  items.forEach((e, idx)=>{
+    const c = colorFor(e.site||"?");
+    const card = document.createElement("div");
+    card.className = "card";
+    card.style.animationDelay = Math.min(idx,12)*40 + "ms";
+    const initial = (e.site||"?").trim().charAt(0).toUpperCase();
+    card.innerHTML = `
+      <div class="avatar" style="color:${c};background:${c}1f;border-color:${c}3a">${initial}</div>
+      <div class="card-main">
+        <div class="site"></div>
+        <div class="user"></div>
+      </div>
+      <div class="card-actions">
+        <button class="mini" data-act="user" title="IDをコピー">${ICON.copy}</button>
+        <button class="mini" data-act="pass" title="パスワードをコピー">${ICON.key}</button>
+        <button class="mini" data-act="edit" title="編集">${ICON.edit}</button>
+      </div>`;
+    card.querySelector(".site").textContent = e.site || "(無題)";
+    card.querySelector(".user").textContent = e.username || "—";
+    card.querySelector('[data-act="user"]').onclick = ()=>copyText(e.username, "IDをコピーしました");
+    card.querySelector('[data-act="pass"]').onclick = ()=>copyText(e.password, "パスワードをコピーしました");
+    card.querySelector('[data-act="edit"]').onclick = ()=>openEdit(e.id);
+    list.appendChild(card);
+  });
+}
+$("search").addEventListener("input", renderList);
+
+async function copyText(t, okMsg){
+  if(!t){ toast("コピーするものがありません"); return; }
+  try{ await navigator.clipboard.writeText(t); toast(okMsg); }
+  catch{ toast("コピーできませんでした"); }
+}
+
+/* ===================== 追加 / 編集 ===================== */
+function openEdit(id){
+  state.editingId = id;
+  const e = id ? state.vault.find(x=>x.id===id) : null;
+  $("editTitle").textContent = e ? "編集" : "新規追加";
+  $("editHint").textContent  = e ? "Edit Entry" : "New Entry";
+  $("f_site").value = e?.site || "";
+  $("f_url").value  = e?.url  || "";
+  $("f_user").value = e?.username || "";
+  $("f_pass").value = e?.password || "";
+  $("f_note").value = e?.note || "";
+  $("deleteBtn").classList.toggle("hidden", !e);
+  $("editModal").classList.remove("hidden");
+  $("f_site").focus();
+}
+$("fab").onclick = ()=>openEdit(null);
+$("cancelEdit").onclick = ()=>$("editModal").classList.add("hidden");
+$("genInModal").onclick = ()=>{ $("f_pass").value = makePassword(16,true,true); };
+
+$("saveEntry").onclick = async ()=>{
+  const site = $("f_site").value.trim();
+  if(!site){ toast("サイト名を入れてください"); return; }
+  const entry = {
+    site, url:$("f_url").value.trim(), username:$("f_user").value.trim(),
+    password:$("f_pass").value, note:$("f_note").value.trim(), updated:Date.now()
+  };
+  if(state.editingId){
+    const i = state.vault.findIndex(x=>x.id===state.editingId);
+    state.vault[i] = {...state.vault[i], ...entry};
+  }else{
+    entry.id = (crypto.randomUUID ? crypto.randomUUID() : String(Date.now()+Math.random()));
+    state.vault.push(entry);
+  }
+  await persist();
+  $("editModal").classList.add("hidden");
+  renderList();
+  toast("保存しました");
+};
+$("deleteBtn").onclick = async ()=>{
+  if(!state.editingId) return;
+  if(!confirm("この項目を削除しますか？")) return;
+  state.vault = state.vault.filter(x=>x.id!==state.editingId);
+  await persist();
+  $("editModal").classList.add("hidden");
+  renderList();
+  toast("削除しました");
+};
+
+async function persist(){
+  const {ciphertext, iv} = await encryptVault(state.vault, state.encKey);
+  const r = await fetch("/api/save",{method:"POST",headers:{"Content-Type":"application/json"},
+    body:JSON.stringify({authHash:state.authHash, ciphertext, iv})});
+  if(!r.ok){ toast("保存に失敗しました"); throw new Error("save failed"); }
+}
+
+/* ===================== パスワード生成 ===================== */
+function makePassword(len, useNum, useSym){
+  let chars = "abcdefghijkmnopqrstuvwxyzABCDEFGHJKLMNPQRSTUVWXYZ"; // 紛らわしい0OIl除外
+  if(useNum) chars += "23456789";
+  if(useSym) chars += "!@#$%&*?-_=+";
+  const rnd = crypto.getRandomValues(new Uint32Array(len));
+  let out="";
+  for(let i=0;i<len;i++) out += chars[rnd[i] % chars.length];
+  return out;
+}
+function regen(){
+  const len = +$("genLen").value;
+  $("lenVal").textContent = len;
+  $("genResult").value = makePassword(len, $("optNum").checked, $("optSym").checked);
+}
+$("genBtn").onclick = ()=>{ $("genModal").classList.remove("hidden"); regen(); };
+$("closeGen").onclick = ()=>$("genModal").classList.add("hidden");
+$("regen").onclick = regen;
+$("genLen").oninput = regen;
+$("optNum").onchange = regen; $("optSym").onchange = regen;
+$("copyGen").onclick = ()=>copyText($("genResult").value, "コピーしました");
+
+/* 起動 */
+boot();
+</script>
+</body>
+</html>

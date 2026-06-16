@@ -1,0 +1,12 @@
+# ローカルの金庫データ（暗号化済みだが公開しない）
+data/
+*.db
+
+# Python
+__pycache__/
+*.pyc
+.venv/
+venv/
+
+# OS
+.DS_Store
