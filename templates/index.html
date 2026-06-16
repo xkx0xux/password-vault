@@ -91,6 +91,10 @@
   .note{font-family:var(--mono);font-size:11px;line-height:1.7;color:var(--muted);margin-top:24px;
     border-left:2px solid var(--acid);padding:4px 0 4px 14px}
   .note b{color:var(--ink)}
+  .linklike{background:none;border:none;color:var(--muted);font-size:12.5px;margin-top:16px;
+    text-decoration:underline;cursor:pointer;font-family:var(--body)}
+  .linklike:hover{color:var(--acid)}
+  .acct{font-family:var(--mono);font-size:11px;color:var(--faint);margin-left:8px}
 
   /* ================= メイン ================= */
   .app{max-width:780px;margin:0 auto;padding:0 18px 110px}
@@ -199,11 +203,15 @@
       <svg class="ic" viewBox="0 0 24 24"><rect x="4" y="10.5" width="16" height="10.5" rx="2.6"/><path d="M8 10.5V7a4 4 0 0 1 8 0v3.5"/></svg>
     </div>
     <div class="kicker">Encrypted Vault</div>
-    <h1 id="lockTitle">読み込み中…</h1>
-    <p class="sub" id="lockSub"></p>
+    <h1 id="lockTitle">パスワード金庫</h1>
+    <p class="sub" id="lockSub">メールアドレスを入力してください</p>
 
     <form id="lockForm" onsubmit="return false">
-      <div class="field">
+      <div class="field" id="emailField">
+        <label>Email</label>
+        <input type="email" id="email" autocomplete="username" placeholder="you@example.com">
+      </div>
+      <div class="field hidden" id="pwField">
         <label id="pwLabel">Master Password</label>
         <input type="password" id="pw" autocomplete="current-password" placeholder="••••••••">
       </div>
@@ -211,12 +219,18 @@
         <label>Confirm</label>
         <input type="password" id="pw2" autocomplete="new-password" placeholder="••••••••">
       </div>
-      <button class="btn" id="lockBtn" type="submit">UNLOCK</button>
+      <div class="field hidden" id="codeField">
+        <label>招待コード</label>
+        <input type="text" id="code" autocomplete="off" placeholder="共有された招待コード">
+      </div>
+      <button class="btn" id="lockBtn" type="submit">続ける</button>
       <div class="msg" id="lockMsg"></div>
     </form>
 
-    <div class="note" id="setupNote">
-      この合言葉ひとつで全データを暗号化します。<br>
+    <button class="linklike hidden" id="backBtn" type="button">← 別のメールアドレスで</button>
+
+    <div class="note hidden" id="setupNote">
+      この合言葉ひとつであなたの金庫を暗号化します。<br>
       <b>忘れると中身は誰にも（私にも）戻せません。</b> 紙に書いて安全に保管してください。
     </div>
   </div>
@@ -238,7 +252,7 @@
         </button>
       </div>
     </div>
-    <div class="meta-row"><b id="count">0</b> ITEMS<span class="rule"></span></div>
+    <div class="meta-row"><b id="count">0</b> ITEMS<span class="rule"></span><span id="acct" class="acct"></span></div>
     <div class="search-wrap">
       <svg class="ic" viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.2-4.2"/></svg>
       <input class="search" id="search" placeholder="サイト名・IDで検索…">
@@ -344,9 +358,36 @@ async function decryptVault(ciphertextB64, ivB64, encKey){
 }
 
 /* ===================== 状態 ===================== */
-const state = { encKey:null, authHash:null, saltB64:null, vault:[], editingId:null };
+const state = { email:null, encKey:null, authHash:null, saltB64:null, vault:[], editingId:null, phase:"email" };
 
 /* ===================== 起動 ===================== */
+function setPhase(phase){
+  state.phase = phase;
+  const show = (id,on)=>$(id).classList.toggle("hidden", !on);
+  show("emailField", phase==="email");
+  show("pwField",    phase!=="email");
+  show("pw2Field",   phase==="register");
+  show("codeField",  phase==="register");
+  show("setupNote",  phase==="register");
+  show("backBtn",    phase!=="email");
+  if(phase==="email"){
+    $("lockTitle").textContent="パスワード金庫";
+    $("lockSub").textContent="メールアドレスを入力してください";
+    $("lockBtn").textContent="続ける";
+    setTimeout(()=>$("email").focus(),0);
+  }else if(phase==="login"){
+    $("lockTitle").textContent="おかえりなさい";
+    $("lockSub").textContent=state.email+" の金庫を開きます";
+    $("lockBtn").textContent="UNLOCK";
+    setTimeout(()=>$("pw").focus(),0);
+  }else{
+    $("lockTitle").textContent="新規登録";
+    $("lockSub").textContent=state.email+" で新しい金庫を作成します";
+    $("lockBtn").textContent="アカウント作成";
+    setTimeout(()=>$("pw").focus(),0);
+  }
+}
+
 async function boot(){
   if(!window.crypto || !crypto.subtle){
     $("lockTitle").textContent = "この接続では使えません";
@@ -354,53 +395,57 @@ async function boot(){
     $("lockForm").classList.add("hidden");
     return;
   }
-  const meta = await (await fetch("/api/meta")).json();
-  if(meta.initialized){
-    state.saltB64 = meta.salt;
-    $("lockTitle").textContent = "おかえりなさい";
-    $("lockSub").textContent = "マスターパスワードを入力して金庫を開きます。";
-    $("pw2Field").classList.add("hidden");
-    $("setupNote").classList.add("hidden");
-    $("lockBtn").textContent = "UNLOCK";
-    $("lockForm").dataset.mode = "unlock";
-  }else{
-    $("lockTitle").textContent = "合言葉を決めます";
-    $("lockSub").textContent = "全データを守るマスターパスワードを設定してください。";
-    $("pw2Field").classList.remove("hidden");
-    $("setupNote").classList.remove("hidden");
-    $("lockBtn").textContent = "CREATE VAULT";
-    $("lockForm").dataset.mode = "setup";
-  }
-  $("pw").focus();
+  setPhase("email");
 }
 
 /* ===================== ロック処理 ===================== */
-$("lockForm").addEventListener("submit", async ()=>{
-  const mode = $("lockForm").dataset.mode;
-  const pw = $("pw").value;
-  const msg = $("lockMsg");
-  msg.className="msg"; msg.textContent="";
-  if(pw.length < 4){ msg.classList.add("err"); msg.textContent="もう少し長いパスワードにしてください"; return; }
+const EMAIL_OK = (e)=>/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(e);
 
+$("lockForm").addEventListener("submit", async ()=>{
+  const msg = $("lockMsg"); msg.className="msg"; msg.textContent="";
+  const setErr = (t)=>{ msg.classList.add("err"); msg.textContent=t; };
+
+  // フェーズ1：メール入力 → 登録済みか確認して振り分け
+  if(state.phase==="email"){
+    const email = $("email").value.trim().toLowerCase();
+    if(!EMAIL_OK(email)){ setErr("メールアドレスの形式を確認してください"); return; }
+    $("lockBtn").disabled=true;
+    try{
+      const r = await fetch("/api/lookup",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({email})});
+      const d = await r.json();
+      if(!r.ok) throw new Error("lookup failed");
+      state.email = email;
+      if(d.exists){ state.saltB64 = d.salt; setPhase("login"); }
+      else { setPhase("register"); }
+    }catch(e){ setErr("接続できませんでした。少し待って再度お試しください。"); console.error(e); }
+    finally{ $("lockBtn").disabled=false; }
+    return;
+  }
+
+  // フェーズ2：ログイン or 新規登録
+  const pw = $("pw").value;
+  if(pw.length < 4){ setErr("もう少し長いパスワードにしてください"); return; }
   $("lockBtn").disabled = true;
   try{
-    if(mode === "setup"){
-      if(pw !== $("pw2").value){ msg.classList.add("err"); msg.textContent="2つのパスワードが一致しません"; return; }
+    if(state.phase==="register"){
+      if(pw !== $("pw2").value){ setErr("2つのパスワードが一致しません"); return; }
       const saltBytes = crypto.getRandomValues(new Uint8Array(16));
       state.saltB64 = bytesToB64(saltBytes);
       const {encKey, authHash} = await deriveKeys(pw, saltBytes);
       state.encKey = encKey; state.authHash = authHash; state.vault = [];
       const {ciphertext, iv} = await encryptVault(state.vault, encKey);
-      const r = await fetch("/api/setup",{method:"POST",headers:{"Content-Type":"application/json"},
-        body:JSON.stringify({salt:state.saltB64, authHash, ciphertext, iv})});
-      if(!r.ok) throw new Error("setup failed");
+      const r = await fetch("/api/register",{method:"POST",headers:{"Content-Type":"application/json"},
+        body:JSON.stringify({email:state.email, signupCode:$("code").value.trim(), salt:state.saltB64, authHash, ciphertext, iv})});
+      if(r.status===403){ setErr("招待コードが正しくありません"); return; }
+      if(r.status===409){ setErr("このメールは既に登録済みです"); return; }
+      if(!r.ok) throw new Error("register failed");
       enterApp();
-    }else{
+    }else{ // login
       const saltBytes = b64ToBytes(state.saltB64);
       const {encKey, authHash} = await deriveKeys(pw, saltBytes);
       const r = await fetch("/api/unlock",{method:"POST",headers:{"Content-Type":"application/json"},
-        body:JSON.stringify({authHash})});
-      if(r.status === 401){ msg.classList.add("err"); msg.textContent="パスワードが違います"; return; }
+        body:JSON.stringify({email:state.email, authHash})});
+      if(r.status===401){ setErr("パスワードが違います"); return; }
       if(!r.ok) throw new Error("unlock failed");
       const data = await r.json();
       state.encKey = encKey; state.authHash = authHash;
@@ -408,18 +453,22 @@ $("lockForm").addEventListener("submit", async ()=>{
       enterApp();
     }
   }catch(e){
-    msg.classList.add("err"); msg.textContent="エラーが発生しました。もう一度お試しください。";
-    console.error(e);
+    setErr("エラーが発生しました。もう一度お試しください。"); console.error(e);
   }finally{
-    $("lockBtn").disabled = false;
-    $("pw").value=""; $("pw2").value="";
+    $("lockBtn").disabled = false; $("pw").value=""; $("pw2").value="";
   }
+});
+
+$("backBtn").addEventListener("click", ()=>{
+  $("lockMsg").textContent=""; $("pw").value=""; $("pw2").value=""; $("code").value="";
+  state.saltB64=null; setPhase("email");
 });
 
 function enterApp(){
   $("lockView").classList.add("hidden");
   $("appView").classList.remove("hidden");
   $("fab").classList.remove("hidden");
+  $("acct").textContent = state.email || "";
   renderList();
 }
 function lockNow(){ location.reload(); }
@@ -528,7 +577,7 @@ $("deleteBtn").onclick = async ()=>{
 async function persist(){
   const {ciphertext, iv} = await encryptVault(state.vault, state.encKey);
   const r = await fetch("/api/save",{method:"POST",headers:{"Content-Type":"application/json"},
-    body:JSON.stringify({authHash:state.authHash, ciphertext, iv})});
+    body:JSON.stringify({email:state.email, authHash:state.authHash, ciphertext, iv})});
   if(!r.ok){ toast("保存に失敗しました"); throw new Error("save failed"); }
 }
 
