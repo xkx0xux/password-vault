@@ -19,8 +19,9 @@ from datetime import datetime, timezone
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 
-# DATABASE_URL があれば PostgreSQL、無ければローカル SQLite
-DATABASE_URL = os.environ.get("DATABASE_URL", "").strip()
+# 接続文字列があれば PostgreSQL、無ければローカル SQLite。
+# ※Renderは予約名 DATABASE_URL に postgres URL を設定できないため VAULT_DB を優先。
+DATABASE_URL = (os.environ.get("VAULT_DB") or os.environ.get("DATABASE_URL", "")).strip()
 if DATABASE_URL.startswith("postgres://"):  # 古い形式を正規化
     DATABASE_URL = DATABASE_URL.replace("postgres://", "postgresql://", 1)
 USE_PG = DATABASE_URL.startswith("postgresql://")
