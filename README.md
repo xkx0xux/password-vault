@@ -25,8 +25,30 @@ PORT=5007 python3 app.py
 - `data/vault.db`（SQLite）。バックアップはこのファイルをコピーするだけ。
 - 環境変数 `VAULT_DB_PATH` で保存先を変更可能。
 
-## iPhoneからも使う（Phase 2・予定）
-公開ホスティング（Render等）に置けばiPhoneのブラウザからも利用可能。
-- crypto API は https 接続が必須（Renderは https なのでOK）。
-- 公開時は `gunicorn app:app` で起動。
-- **DBの永続化が必須**（Renderの永続ディスク or 外部DB）。無料枠は再デプロイで消えるため要注意。
+## iPhoneからも使う（公開手順・無料）
+GitHub: https://github.com/xkx0xux/password-vault （非公開）
+
+### ① 永続DBを用意（Neon・無料）
+1. https://neon.tech にGitHubでサインアップ
+2. プロジェクトを新規作成（設定はそのままでOK）
+3. 表示される **接続文字列（Connection string）** をコピー
+   例：`postgresql://user:pass@ep-xxx.neon.tech/neondb?sslmode=require`
+
+### ② Renderで公開（無料）
+1. https://render.com → New → **Blueprint**
+2. リポジトリ `password-vault` を選択（このリポジトリの `render.yaml` を自動認識）
+3. 環境変数 **DATABASE_URL** に ①の接続文字列を貼り付け → Apply / Deploy
+4. 数分で `https://vault-password-manager.onrender.com` 等のURLが発行される
+
+### ③ iPhoneで使う
+- そのURLをSafariで開く → 共有 → **「ホーム画面に追加」** でアプリ化
+- 初回はマスターパスワードを設定（公開版は新しい金庫＝ローカル版とは別データ）
+
+### 同期について
+PCもiPhoneも **同じRenderのURL** を開けば、データはNeonで共有＝同期されます。
+（`localhost:5007` のローカル版はオフライン用の別データです）
+
+### 仕様メモ
+- crypto APIは https 必須 → Renderはhttpsなので動作OK。
+- 無料枠は約15分アクセスが無いとスリープ → 次回の初回表示が30〜60秒遅いことがある。
+- Render内蔵のPostgres無料枠は期限切れで消えるため使わない（外部のNeonを使う）。
