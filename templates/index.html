@@ -70,13 +70,14 @@
   .field{margin-bottom:14px}
   .field label{display:block;font-family:var(--mono);font-size:10.5px;letter-spacing:.18em;
     text-transform:uppercase;color:var(--faint);margin-bottom:8px}
-  .field input{
+  .field input, .field textarea{
     width:100%;padding:14px 16px;border:1px solid var(--line2);border-radius:13px;
     font-size:15px;outline:none;background:var(--panel);color:var(--ink);
     transition:border-color .18s, box-shadow .18s, background .18s
   }
-  .field input::placeholder{color:var(--faint)}
-  .field input:focus{border-color:var(--acid);background:var(--panel2);box-shadow:0 0 0 4px var(--acid-dim)}
+  .field textarea{min-height:92px;resize:vertical;line-height:1.6;font-family:var(--body)}
+  .field input::placeholder, .field textarea::placeholder{color:var(--faint)}
+  .field input:focus, .field textarea:focus{border-color:var(--acid);background:var(--panel2);box-shadow:0 0 0 4px var(--acid-dim)}
   .btn{
     width:100%;padding:15px;border-radius:13px;background:var(--acid);color:var(--acid-ink);
     font-family:var(--display);font-weight:700;font-size:14px;letter-spacing:.04em;
@@ -283,7 +284,7 @@
       </div>
     </div>
     <div class="field"><label>Note</label>
-      <input id="f_note" placeholder="任意"></div>
+      <textarea id="f_note" rows="3" placeholder="任意（改行できます）"></textarea></div>
     <div class="modal-actions">
       <button class="btn-ghost btn-danger hidden" id="deleteBtn">削除</button>
       <button class="btn-ghost" id="cancelEdit">閉じる</button>
